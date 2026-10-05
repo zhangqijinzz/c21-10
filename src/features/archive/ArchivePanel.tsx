@@ -1,11 +1,15 @@
 import { useState } from "react";
 import { Archive, Copy, Database, HardDrive, Trash2 } from "lucide-react";
 import type { LatencyProject } from "../../shared/domain/types";
+import {
+  describePersistedState,
+  type PersistedState,
+} from "../workbench/persistenceStatus";
 
 interface Props {
   projects: LatencyProject[];
   activeId: string;
-  storageState: "saving" | "saved" | "error";
+  storageState: PersistedState;
   notice: string;
   onChoose: (id: string) => void;
   onDuplicate: () => void;
@@ -26,6 +30,7 @@ export default function ArchivePanel({
   const [pendingDelete, setPendingDelete] = useState<LatencyProject | null>(
     null,
   );
+  const persistence = describePersistedState(storageState);
   return (
     <section className="module-page archive-page">
       <div className="module-heading">
@@ -50,14 +55,18 @@ export default function ArchivePanel({
             持久化项目数据，并保留本地恢复副本。刷新或重新打开后自动载入最近项目。
           </p>
           <div className="storage-status">
-            <i className={storageState === "error" ? "status-error" : ""} />
-            {storageState === "saving"
-              ? "正在保存更改…"
-              : storageState === "error"
-                ? "保存遇到问题"
-                : "所有更改已保存"}
+            <i
+              className={
+                persistence.tone === "error"
+                  ? "status-error"
+                  : persistence.tone === "warn"
+                    ? "status-warn"
+                    : ""
+              }
+            />
+            {persistence.archiveLabel}
           </div>
-          {storageState === "error" && (
+          {persistence.canRetry && (
             <button className="text-action" onClick={onRetrySave}>
               重试保存 →
             </button>

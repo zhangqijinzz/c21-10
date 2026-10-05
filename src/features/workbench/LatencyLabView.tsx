@@ -11,6 +11,7 @@ import {
   X,
 } from "lucide-react";
 import { useLatencyLab } from "./useLatencyLab";
+import { describePersistedState } from "./persistenceStatus";
 import ProjectsPanel from "../projects/ProjectsPanel";
 import GraphEditor from "../graph-editor/GraphEditor";
 import SimulationPanel from "../simulation/SimulationPanel";
@@ -63,6 +64,10 @@ export default function LatencyLabView() {
     );
 
   const active = vm.activeProject;
+  const persistence = describePersistedState(vm.persisted);
+  const showSaveRetry =
+    persistence.canRetry &&
+    (vm.persisted.kind === "degraded" || vm.persisted.kind === "failed");
   return (
     <div className="app-shell">
       <Sidebar
@@ -88,14 +93,17 @@ export default function LatencyLabView() {
           </div>
           <div className="topbar-right">
             <span
-              className={`save-state ${vm.persisted === "error" ? "save-error" : ""}`}
+              className={`save-state ${
+                persistence.tone === "error"
+                  ? "save-error"
+                  : persistence.tone === "warn"
+                    ? "save-warn"
+                    : ""
+              }`}
+              title={persistence.archiveLabel}
             >
               <i />
-              {vm.persisted === "saving"
-                ? "保存中"
-                : vm.persisted === "error"
-                  ? "保存失败"
-                  : "已保存"}
+              {persistence.topbarLabel}
             </span>
             <span className="topbar-divider" />
             <span className="env-pill">
@@ -118,6 +126,11 @@ export default function LatencyLabView() {
             <span>
               <Sparkles size={14} /> {vm.notice}
             </span>
+            {showSaveRetry && (
+              <button className="notice-retry" onClick={vm.retrySave}>
+                重试保存
+              </button>
+            )}
             <button onClick={() => vm.setNotice("")} aria-label="关闭提示">
               <X size={14} />
             </button>

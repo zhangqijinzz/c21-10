@@ -28,6 +28,11 @@ import {
 } from "../scenarios/scenarioViewModel";
 import { removeProject, updateProject } from "../projects/projectViewModel";
 import { simulateProject } from "../../shared/domain/simulation";
+import {
+  describePersistedState,
+  toPersistedState,
+  type PersistedState,
+} from "./persistenceStatus";
 
 export type LabStatus =
   "loading" | "ready" | "editing" | "simulating" | "error" | "completed";
@@ -46,9 +51,9 @@ export function useLatencyLab() {
     comparisonId: string;
   }>({ baselineId: "", comparisonId: "" });
   const [notice, setNotice] = useState("");
-  const [persisted, setPersisted] = useState<"saving" | "saved" | "error">(
-    "saved",
-  );
+  const [persisted, setPersisted] = useState<PersistedState>({
+    kind: "saved",
+  });
   const queue = useRef(Promise.resolve());
   const revision = useRef(0);
   const activeProject =
@@ -116,21 +121,31 @@ export function useLatencyLab() {
       setDocument(next);
       setStatus(nextStatus);
       setNotice("");
-      setPersisted("saving");
+      setPersisted({ kind: "saving" });
       queue.current = queue.current
         .then(() => repository.save(next))
-        .then(() => {
-          if (revision.current === currentRevision) {
-            setPersisted("saved");
+        .then((report) => {
+          if (revision.current !== currentRevision) return;
+          const state = toPersistedState(report);
+          setPersisted(state);
+          if (state.kind === "failed") {
+            setStatus("error");
+            setNotice(describePersistedState(state).notice);
+          } else {
             if (nextStatus === "editing") setStatus("completed");
+            if (state.kind === "degraded")
+              setNotice(describePersistedState(state).notice);
           }
         })
         .catch(() => {
-          if (revision.current === currentRevision) {
-            setPersisted("error");
-            setStatus("error");
-            setNotice("保存失败。数据仍保留在当前页面，请重试保存。");
-          }
+          if (revision.current !== currentRevision) return;
+          const state: PersistedState = {
+            kind: "failed",
+            reasons: { indexedDb: "unknown", recoveryCopy: "unknown" },
+          };
+          setPersisted(state);
+          setStatus("error");
+          setNotice(describePersistedState(state).notice);
         });
     },
     [repository],

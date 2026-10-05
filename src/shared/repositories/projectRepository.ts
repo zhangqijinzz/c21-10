@@ -193,35 +193,119 @@ export interface WorkspaceStorage {
   write(value: WorkspaceDocument): Promise<void>;
 }
 
+export type StorageLayerId = "indexedDb" | "recoveryCopy";
+
+export type StorageFailureReason =
+  "quota" | "unsupported" | "timeout" | "unknown";
+
+export interface StorageLayerFailure {
+  reason: StorageFailureReason;
+  message: string;
+}
+
+export type StorageLayerResult =
+  { ok: true } | { ok: false; failure: StorageLayerFailure };
+
+export interface SaveReport {
+  indexedDb: StorageLayerResult;
+  recoveryCopy: StorageLayerResult;
+}
+
+export type SaveVerdict = "saved" | "degraded" | "failed";
+
+export function summarizeSave(report: SaveReport): SaveVerdict {
+  if (report.indexedDb.ok && report.recoveryCopy.ok) return "saved";
+  if (!report.indexedDb.ok && !report.recoveryCopy.ok) return "failed";
+  return "degraded";
+}
+
+const STORAGE_TIMEOUT_MS = 4000;
+
+class StorageTimeoutError extends Error {
+  constructor(layer: string) {
+    super(`${layer}长时间无响应`);
+    this.name = "StorageTimeoutError";
+  }
+}
+
+function classifyStorageError(error: unknown): StorageFailureReason {
+  if (error instanceof StorageTimeoutError) return "timeout";
+  const name = error instanceof Error ? error.name : "";
+  const message = error instanceof Error ? error.message : String(error);
+  if (name === "QuotaExceededError" || /quota|空间不足/i.test(message))
+    return "quota";
+  if (/不支持|not supported/i.test(message)) return "unsupported";
+  if (/超时|无响应|timed?\s*out/i.test(message)) return "timeout";
+  return "unknown";
+}
+
+function toFailure(error: unknown): StorageLayerFailure {
+  return {
+    reason: classifyStorageError(error),
+    message: error instanceof Error ? error.message : String(error),
+  };
+}
+
+function withTimeout<T>(
+  promise: Promise<T>,
+  ms: number,
+  layer: string,
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new StorageTimeoutError(layer)), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error: unknown) => {
+        clearTimeout(timer);
+        reject(error instanceof Error ? error : new Error(String(error)));
+      },
+    );
+  });
+}
+
+async function attempt(
+  operation: () => Promise<void>,
+): Promise<StorageLayerResult> {
+  try {
+    await operation();
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, failure: toFailure(error) };
+  }
+}
+
 export class ProjectRepository {
   constructor(
     private readonly storage: WorkspaceStorage = new IndexedDbService(),
+    private readonly timeoutMs: number = STORAGE_TIMEOUT_MS,
   ) {}
+
+  private readRecoveryCopy() {
+    const local = localStorage.getItem(FALLBACK_KEY);
+    if (!local) return undefined;
+    try {
+      const fallback = parseWorkspace(JSON.parse(local) as unknown);
+      if (fallback) return { ...fallback, recovered: true };
+    } catch {
+      localStorage.removeItem(FALLBACK_KEY);
+    }
+    return undefined;
+  }
 
   async load(): Promise<{ document: WorkspaceDocument; recovered: boolean }> {
     try {
-      const stored = parseWorkspace(await this.storage.read());
+      const stored = parseWorkspace(
+        await withTimeout(this.storage.read(), this.timeoutMs, "本地数据库"),
+      );
       if (stored) return stored;
-      const local = localStorage.getItem(FALLBACK_KEY);
-      if (local) {
-        try {
-          const fallback = parseWorkspace(JSON.parse(local) as unknown);
-          if (fallback) return { ...fallback, recovered: true };
-        } catch {
-          localStorage.removeItem(FALLBACK_KEY);
-        }
-      }
     } catch {
-      const local = localStorage.getItem(FALLBACK_KEY);
-      if (local) {
-        try {
-          const fallback = parseWorkspace(JSON.parse(local) as unknown);
-          if (fallback) return { ...fallback, recovered: true };
-        } catch {
-          localStorage.removeItem(FALLBACK_KEY);
-        }
-      }
+      // 数据库读取失败或无响应时，回落到恢复副本。
     }
+    const fallback = this.readRecoveryCopy();
+    if (fallback) return fallback;
     return {
       document: {
         version: 1,
@@ -232,18 +316,15 @@ export class ProjectRepository {
     };
   }
 
-  async save(document: WorkspaceDocument): Promise<void> {
-    let indexedDbError: unknown;
-    try {
-      await this.storage.write(document);
-    } catch (error) {
-      indexedDbError = error;
-    }
-    try {
-      localStorage.setItem(FALLBACK_KEY, JSON.stringify(document));
-    } catch (error) {
-      if (!indexedDbError) throw error;
-    }
-    if (indexedDbError) throw indexedDbError;
+  async save(document: WorkspaceDocument): Promise<SaveReport> {
+    const [indexedDb, recoveryCopy] = await Promise.all([
+      attempt(() =>
+        withTimeout(this.storage.write(document), this.timeoutMs, "本地数据库"),
+      ),
+      attempt(async () => {
+        localStorage.setItem(FALLBACK_KEY, JSON.stringify(document));
+      }),
+    ]);
+    return { indexedDb, recoveryCopy };
   }
 }

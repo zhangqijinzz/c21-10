@@ -419,6 +419,13 @@ button:disabled {
   background: #c96855;
   box-shadow: 0 0 0 3px #f9e7e3;
 }
+.save-warn {
+  color: #a87f2f;
+}
+.save-warn i {
+  background: #d9a441;
+  box-shadow: 0 0 0 3px #f8eeda;
+}
 .topbar-divider {
   height: 17px;
   border-left: 1px solid #e4e7e1;
@@ -621,6 +628,19 @@ button:disabled {
   background: none;
   border: 0;
   cursor: pointer;
+}
+.notice-banner .notice-retry {
+  width: auto;
+  height: auto;
+  padding: 3px 10px;
+  color: #58663e;
+  font-size: 9px;
+  border: 1px solid #c9d8a8;
+  border-radius: 999px;
+  background: #f7fbe9;
+}
+.notice-banner .notice-retry:hover {
+  background: #e9f2d2;
 }
 .loading-screen {
   height: 100vh;
@@ -2030,6 +2050,10 @@ button:disabled {
 .storage-status i.status-error {
   background: #c96855;
   box-shadow: 0 0 0 3px #f9e7e3;
+}
+.storage-status i.status-warn {
+  background: #d9a441;
+  box-shadow: 0 0 0 3px #f8eeda;
 }
 .text-action {
   padding: 0;
