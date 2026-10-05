@@ -401,7 +401,12 @@ button:disabled {
   display: flex;
   align-items: center;
   gap: 7px;
+  padding: 4px 9px;
   color: #778279;
+  background: none;
+  border: 0;
+  border-radius: 5px;
+  font: inherit;
   font-size: 9px;
 }
 .save-state i,
@@ -412,12 +417,35 @@ button:disabled {
   background: #7eb34c;
   box-shadow: 0 0 0 3px #ecf4e3;
 }
-.save-error {
+.save-state .save-retry-hint {
+  padding-left: 6px;
+  margin-left: 2px;
+  font-style: normal;
+  border-left: 1px solid currentColor;
+  text-decoration: underline;
+}
+.save-state.save-tone-ok {
+  color: #5e7a45;
+}
+.save-state.save-tone-warn {
+  color: #93691f;
+}
+.save-state.save-tone-warn i {
+  background: #d79a2b;
+  box-shadow: 0 0 0 3px #f7ecd4;
+}
+.save-state.save-tone-danger {
   color: #b65b4e;
 }
-.save-error i {
+.save-state.save-tone-danger i {
   background: #c96855;
   box-shadow: 0 0 0 3px #f9e7e3;
+}
+.save-state.save-retryable {
+  cursor: pointer;
+}
+.save-state.save-retryable:hover {
+  background: #f4f6f0;
 }
 .topbar-divider {
   height: 17px;
@@ -2021,15 +2049,98 @@ button:disabled {
   font-size: 9px;
 }
 .storage-status i {
+  flex: 0 0 auto;
   width: 6px;
   height: 6px;
   border-radius: 50%;
   background: #8ab54d;
   box-shadow: 0 0 0 3px #eff6e5;
 }
-.storage-status i.status-error {
+.storage-status.storage-tone-ok {
+  color: #5e7a45;
+}
+.storage-status.storage-tone-warn {
+  color: #93691f;
+}
+.storage-status.storage-tone-warn i {
+  background: #d79a2b;
+  box-shadow: 0 0 0 3px #f7ecd4;
+}
+.storage-status.storage-tone-danger {
+  color: #b65b4e;
+}
+.storage-status.storage-tone-danger i {
   background: #c96855;
   box-shadow: 0 0 0 3px #f9e7e3;
+}
+.storage-status-summary {
+  color: #9aa39b;
+}
+.storage-status.storage-tone-warn .storage-status-summary {
+  color: #b08c4f;
+}
+.storage-status.storage-tone-danger .storage-status-summary {
+  color: #c98f84;
+}
+.storage-layers {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.storage-layer {
+  display: grid;
+  grid-template-columns: 8px 1fr auto;
+  align-items: center;
+  gap: 4px 9px;
+  padding: 10px 12px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  font-size: 9px;
+}
+.storage-layer i {
+  grid-row: 1 / span 2;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #8ab54d;
+  box-shadow: 0 0 0 3px #eff6e5;
+}
+.storage-layer strong {
+  color: #405542;
+  font-weight: 600;
+}
+.storage-layer-state {
+  color: #5e7a45;
+  font-size: 8px;
+  letter-spacing: 0.3px;
+}
+.storage-layer small {
+  grid-column: 2 / span 2;
+  color: #9aa39b;
+}
+.storage-layer-pending i {
+  background: #c7cdc2;
+  box-shadow: 0 0 0 3px #f1f3ee;
+}
+.storage-layer-pending .storage-layer-state {
+  color: #8b948b;
+}
+.storage-layer-quota i,
+.storage-layer-unsupported i,
+.storage-layer-timeout i,
+.storage-layer-error i {
+  background: #d79a2b;
+  box-shadow: 0 0 0 3px #f7ecd4;
+}
+.storage-layer-quota .storage-layer-state,
+.storage-layer-unsupported .storage-layer-state,
+.storage-layer-timeout .storage-layer-state,
+.storage-layer-error .storage-layer-state {
+  color: #a0731f;
 }
 .text-action {
   padding: 0;
@@ -2062,7 +2173,7 @@ button:disabled {
 }
 .archive-notice {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
   margin-top: 15px;
   padding: 10px 12px;
@@ -2071,6 +2182,34 @@ button:disabled {
   border: 1px solid #e5edd5;
   border-radius: 7px;
   font-size: 9px;
+}
+.archive-notice div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.archive-notice strong {
+  color: inherit;
+}
+.archive-notice span {
+  color: #7f8d70;
+  line-height: 1.6;
+}
+.archive-notice-warn {
+  color: #93691f;
+  background: #fbf4e2;
+  border-color: #f0e0b6;
+}
+.archive-notice-warn span {
+  color: #a7874c;
+}
+.archive-notice-danger {
+  color: #b65b4e;
+  background: #fbf0ee;
+  border-color: #f2d4cf;
+}
+.archive-notice-danger span {
+  color: #c08478;
 }
 .archive-table {
   margin-top: 20px;

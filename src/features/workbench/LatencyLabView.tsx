@@ -87,16 +87,23 @@ export default function LatencyLabView() {
             </strong>
           </div>
           <div className="topbar-right">
-            <span
-              className={`save-state ${vm.persisted === "error" ? "save-error" : ""}`}
+            <button
+              type="button"
+              className={`save-state save-tone-${vm.storageView.tone} ${
+                vm.storageView.retryable ? "save-retryable" : ""
+              }`}
+              title={vm.storageView.detail}
+              aria-live="polite"
+              onClick={
+                vm.storageView.retryable ? vm.retrySave : undefined
+              }
             >
               <i />
-              {vm.persisted === "saving"
-                ? "保存中"
-                : vm.persisted === "error"
-                  ? "保存失败"
-                  : "已保存"}
-            </span>
+              {vm.storageView.label}
+              {vm.storageView.retryable && (
+                <em className="save-retry-hint">重试</em>
+              )}
+            </button>
             <span className="topbar-divider" />
             <span className="env-pill">
               <i />
@@ -181,8 +188,7 @@ export default function LatencyLabView() {
             <ArchivePanel
               projects={vm.document.projects}
               activeId={active.id}
-              storageState={vm.persisted}
-              notice={vm.notice}
+              storage={vm.storageView}
               onChoose={vm.chooseProject}
               onDuplicate={vm.duplicateActive}
               onDelete={vm.deleteProject}

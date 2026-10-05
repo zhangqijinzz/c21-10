@@ -28,6 +28,13 @@ import {
 } from "../scenarios/scenarioViewModel";
 import { removeProject, updateProject } from "../projects/projectViewModel";
 import { simulateProject } from "../../shared/domain/simulation";
+import {
+  buildStoragePresentation,
+  type SaveOutcome,
+  type StoragePhase,
+  type StoragePresentation,
+  type WorkspaceSource,
+} from "../../shared/repositories/persistenceStatus";
 
 export type LabStatus =
   "loading" | "ready" | "editing" | "simulating" | "error" | "completed";
@@ -46,9 +53,11 @@ export function useLatencyLab() {
     comparisonId: string;
   }>({ baselineId: "", comparisonId: "" });
   const [notice, setNotice] = useState("");
-  const [persisted, setPersisted] = useState<"saving" | "saved" | "error">(
-    "saved",
-  );
+  // 两层存储各自的最近一次结果；阶段区分“保存中 / 已落定 / 启动闲置”
+  const [saveOutcome, setSaveOutcome] = useState<SaveOutcome | null>(null);
+  const [storagePhase, setStoragePhase] = useState<StoragePhase>("idle");
+  const [workspaceSource, setWorkspaceSource] =
+    useState<WorkspaceSource>("example");
   const queue = useRef(Promise.resolve());
   const revision = useRef(0);
   const activeProject =
@@ -80,6 +89,17 @@ export function useLatencyLab() {
     Boolean(activeProject) &&
     result?.entries.length === activeProject?.nodes.length;
 
+  // 顶栏与归档页消费同一个展示对象，说法、重试入口完全一致
+  const storageView = useMemo<StoragePresentation>(
+    () =>
+      buildStoragePresentation({
+        phase: storagePhase,
+        outcome: saveOutcome,
+        source: workspaceSource,
+      }),
+    [storagePhase, saveOutcome, workspaceSource],
+  );
+
   const selectComparisonScenario = useCallback(
     (side: "baselineId" | "comparisonId", id: string) => {
       setComparisonIds((current) => ({ ...current, [side]: id }));
@@ -91,13 +111,19 @@ export function useLatencyLab() {
     let mounted = true;
     void repository
       .load()
-      .then(({ document: loaded, recovered }) => {
+      .then(({ document: loaded, recovered, source, outcome }) => {
         if (!mounted) return;
         documentRef.current = loaded;
         setDocument(loaded);
         setStatus("ready");
-        if (recovered)
+        setWorkspaceSource(source);
+        // 启动即反映两层存储的真实能力（不支持 / 不可读等）
+        setSaveOutcome(outcome);
+        setStoragePhase("idle");
+        if (recovered && source === "example")
           setNotice("已载入示例工作区；后续修改会自动保存到此设备。");
+        else if (recovered)
+          setNotice("主数据库暂不可用，已从本地恢复副本载入最近内容。");
       })
       .catch(() => {
         if (!mounted) return;
@@ -116,21 +142,38 @@ export function useLatencyLab() {
       setDocument(next);
       setStatus(nextStatus);
       setNotice("");
-      setPersisted("saving");
+      setStoragePhase("saving");
       queue.current = queue.current
         .then(() => repository.save(next))
-        .then(() => {
-          if (revision.current === currentRevision) {
-            setPersisted("saved");
+        .then((outcome) => {
+          if (revision.current !== currentRevision) return;
+          setSaveOutcome(outcome);
+          setStoragePhase("settled");
+          if (outcome.primary.state === "ok" || outcome.fallback.state === "ok") {
+            // 至少一层确认写入，数据安全；仅单层时界面给出与实际一致的降级提示
             if (nextStatus === "editing") setStatus("completed");
+          } else {
+            setStatus("error");
           }
         })
         .catch(() => {
-          if (revision.current === currentRevision) {
-            setPersisted("error");
-            setStatus("error");
-            setNotice("保存失败。数据仍保留在当前页面，请重试保存。");
-          }
+          // 理论上 save 已把两层失败归并到 outcome；兜底防御未知异常
+          if (revision.current !== currentRevision) return;
+          setSaveOutcome({
+            primary: {
+              layer: "primary",
+              state: "error",
+              detail: "保存流程异常中断",
+            },
+            fallback: {
+              layer: "fallback",
+              state: "error",
+              detail: "保存流程异常中断",
+            },
+            durationMs: 0,
+          });
+          setStoragePhase("settled");
+          setStatus("error");
         });
     },
     [repository],
@@ -279,7 +322,7 @@ export function useLatencyLab() {
     setMode,
     notice,
     setNotice,
-    persisted,
+    storageView,
     chooseProject,
     newProject,
     renameActive,

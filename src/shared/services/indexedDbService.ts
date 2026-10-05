@@ -5,8 +5,15 @@ const STORE = "workspace";
 const KEY = "latency-lab.workspace.v1";
 
 export class IndexedDbService {
+  isSupported(): boolean {
+    return (
+      "indexedDB" in globalThis &&
+      typeof globalThis.indexedDB?.open === "function"
+    );
+  }
+
   async read(): Promise<unknown> {
-    if (!("indexedDB" in globalThis)) throw new Error("浏览器不支持 IndexedDB");
+    if (!this.isSupported()) throw new Error("浏览器不支持 IndexedDB");
     const db = await this.open();
     return new Promise((resolve, reject) => {
       const request = db
@@ -20,7 +27,7 @@ export class IndexedDbService {
   }
 
   async write(value: WorkspaceDocument): Promise<void> {
-    if (!("indexedDB" in globalThis)) throw new Error("浏览器不支持 IndexedDB");
+    if (!this.isSupported()) throw new Error("浏览器不支持 IndexedDB");
     const db = await this.open();
     return new Promise((resolve, reject) => {
       const transaction = db.transaction(STORE, "readwrite");

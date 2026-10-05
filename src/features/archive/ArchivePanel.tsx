@@ -1,23 +1,47 @@
 import { useState } from "react";
-import { Archive, Copy, Database, HardDrive, Trash2 } from "lucide-react";
+import { AlertTriangle, Copy, Database, HardDrive, Trash2 } from "lucide-react";
 import type { LatencyProject } from "../../shared/domain/types";
+import type {
+  StorageLayerView,
+  StoragePresentation,
+} from "../../shared/repositories/persistenceStatus";
 
 interface Props {
   projects: LatencyProject[];
   activeId: string;
-  storageState: "saving" | "saved" | "error";
-  notice: string;
+  storage: StoragePresentation;
   onChoose: (id: string) => void;
   onDuplicate: () => void;
   onDelete: (id: string) => void;
   onRetrySave: () => void;
 }
 
+const LAYER_STATE_TEXT: Record<StorageLayerView["state"], string> = {
+  ok: "正常",
+  pending: "写入中",
+  quota: "空间不足",
+  unsupported: "浏览器不支持",
+  timeout: "长时间无响应",
+  error: "失败",
+};
+
+function LayerRow({ layer }: { layer: StorageLayerView }) {
+  return (
+    <li className={`storage-layer storage-layer-${layer.state}`}>
+      <i />
+      <strong>{layer.name}</strong>
+      <span className="storage-layer-state">
+        {LAYER_STATE_TEXT[layer.state]}
+      </span>
+      <small>{layer.detail}</small>
+    </li>
+  );
+}
+
 export default function ArchivePanel({
   projects,
   activeId,
-  storageState,
-  notice,
+  storage,
   onChoose,
   onDuplicate,
   onDelete,
@@ -49,15 +73,12 @@ export default function ArchivePanel({
             IndexedDB
             持久化项目数据，并保留本地恢复副本。刷新或重新打开后自动载入最近项目。
           </p>
-          <div className="storage-status">
-            <i className={storageState === "error" ? "status-error" : ""} />
-            {storageState === "saving"
-              ? "正在保存更改…"
-              : storageState === "error"
-                ? "保存遇到问题"
-                : "所有更改已保存"}
+          <div className={`storage-status storage-tone-${storage.tone}`}>
+            <i />
+            {storage.label}
+            <span className="storage-status-summary">{storage.summary}</span>
           </div>
-          {storageState === "error" && (
+          {storage.retryable && (
             <button className="text-action" onClick={onRetrySave}>
               重试保存 →
             </button>
@@ -71,12 +92,23 @@ export default function ArchivePanel({
           <strong>{String(projects.length).padStart(2, "0")}</strong>
         </div>
       </div>
-      {notice && (
-        <div className="archive-notice">
-          <Archive size={15} />
-          {notice}
+      {storage.tone !== "ok" && storage.phase !== "saving" && (
+        <div
+          className={`archive-notice archive-notice-${storage.tone}`}
+          role="status"
+        >
+          <AlertTriangle size={15} />
+          <div>
+            <strong>{storage.label}</strong>
+            <span>{storage.detail}</span>
+          </div>
         </div>
       )}
+      <ul className="storage-layers" aria-label="两层存储状态">
+        {storage.layers.map((layer) => (
+          <LayerRow key={layer.id} layer={layer} />
+        ))}
+      </ul>
       <div className="archive-table">
         <div className="archive-table-head">
           <span>项目名称</span>
